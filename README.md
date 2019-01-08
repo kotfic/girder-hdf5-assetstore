@@ -1,0 +1,1 @@
+# girder-hdf5-assetstore
