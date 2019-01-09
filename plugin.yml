@@ -1,0 +1,3 @@
+name: HDF5 Assetstore
+description: >-
+  Adds support for importing HDF files as girder items and folders
