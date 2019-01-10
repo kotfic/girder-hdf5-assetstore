@@ -1,3 +1,5 @@
+from functools import partial
+import h5py
 import os
 
 from girder.api import access
@@ -14,10 +16,33 @@ from girder.utility.filesystem_assetstore_adapter import FilesystemAssetstoreAda
 from girder.utility.progress import ProgressContext
 
 
+def resolve_dataset(root_folder, obj, user, assetstore):
+    directory, name = os.path.split(obj.name)
+    tokens = [i for i in directory.split('/') if i]
+    parent = root_folder
+    for token in tokens:
+        parent = Folder().createFolder(parent, token, creator=user, reuseExisting=True)
+    item = Item().createItem(name=name, creator=user, folder=parent, reuseExisting=True)
+    File().createFile(name=name, creator=user, item=item, reuseExisting=True,
+                      assetstore=assetstore, saveFile=False, size=obj.size)
+
+def mirror_objects_in_girder(folder, progress, user, assetstore, name, obj):
+    progress.update(message=name)
+    if isinstance(obj, h5py.Dataset):
+        resolve_dataset(folder, obj, user, assetstore)
+
+
 class Hdf5SupportAdapter(FilesystemAssetstoreAdapter):
     def _importHdf5(self, path, folder, progress, user):
         if not os.path.isabs(path):
             path = os.path.join(self.assetstore['root'], path)
+
+        try:
+            hdf = h5py.File(path, 'r')
+            hdf.visititems(partial(mirror_objects_in_girder, folder, progress, user, self.assetstore))
+        except IOError:
+            raise RestException('{} is not an hdf5 file'.format(path))
+
 
 @boundHandler
 @access.admin(scope=TokenScope.DATA_WRITE)
