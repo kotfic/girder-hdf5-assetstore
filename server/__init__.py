@@ -16,13 +16,23 @@ from girder.utility.filesystem_assetstore_adapter import FilesystemAssetstoreAda
 from girder.utility.progress import ProgressContext
 
 
+def get_corresponding_hdf5_obj(obj, token):
+    while os.path.basename(obj.name) != token:
+        obj = obj.parent
+    return obj
+
 def resolve_dataset(root_folder, obj, user, assetstore):
     directory, name = os.path.split(obj.name)
     tokens = [i for i in directory.split('/') if i]
     parent = root_folder
     for token in tokens:
+        hdf5_obj = get_corresponding_hdf5_obj(obj, token)
         parent = Folder().createFolder(parent, token, creator=user, reuseExisting=True)
+        parent['hdf5Metadata'] = str(hdf5_obj.attrs.items())
+        Folder().save(parent)
     item = Item().createItem(name=name, creator=user, folder=parent, reuseExisting=True)
+    item['hdf5Metadata'] = str(obj.attrs.items())
+    Item().save(item)
     File().createFile(name=name, creator=user, item=item, reuseExisting=True,
                       assetstore=assetstore, saveFile=False, size=obj.size)
 
