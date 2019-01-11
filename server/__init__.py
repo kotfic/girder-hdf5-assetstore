@@ -21,6 +21,12 @@ def get_corresponding_hdf5_obj(obj, token):
         obj = obj.parent
     return obj
 
+def resolve_group(root_folder, obj, user):
+    tokens = [i for i in obj.name.split('/') if i]
+    parent = root_folder
+    for token in tokens:
+        parent = Folder().createFolder(parent, token, creator=user, reuseExisting=True)
+
 def resolve_dataset(root_folder, obj, user, assetstore):
     directory, name = os.path.split(obj.name)
     tokens = [i for i in directory.split('/') if i]
@@ -40,7 +46,8 @@ def mirror_objects_in_girder(folder, progress, user, assetstore, name, obj):
     progress.update(message=name)
     if isinstance(obj, h5py.Dataset):
         resolve_dataset(folder, obj, user, assetstore)
-
+    elif isinstance(obj, h5py.Group):
+        resolve_group(folder, obj, user)
 
 class Hdf5SupportAdapter(FilesystemAssetstoreAdapter):
     def _importHdf5(self, path, folder, progress, user):
