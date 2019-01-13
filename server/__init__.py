@@ -29,11 +29,11 @@ def resolve_group(root_folder, obj, user):
         hdf5_obj = get_corresponding_hdf5_obj(obj, token)
         parent = Folder().createFolder(parent, token, creator=user, reuseExisting=True)
         parent['hdf5Metadata'] = str(hdf5_obj.attrs.items())
-        parent['hdf5Path'] = hdf5_obj.name
+        parent['pathInHdf5'] = hdf5_obj.name
         Folder().save(parent)
 
 
-def resolve_dataset(root_folder, obj, user, assetstore):
+def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path):
     directory, name = os.path.split(obj.name)
     tokens = [i for i in directory.split('/') if i]
     parent = root_folder
@@ -41,32 +41,46 @@ def resolve_dataset(root_folder, obj, user, assetstore):
         hdf5_obj = get_corresponding_hdf5_obj(obj, token)
         parent = Folder().createFolder(parent, token, creator=user, reuseExisting=True)
         parent['hdf5Metadata'] = str(hdf5_obj.attrs.items())
-        parent['hdf5Path'] = hdf5_obj.name
+        parent['pathInHdf5'] = hdf5_obj.name
         Folder().save(parent)
     item = Item().createItem(name=name, creator=user, folder=parent, reuseExisting=True)
     item['hdf5Metadata'] = str(obj.attrs.items())
-    item['hdf5Path'] = obj.name
     Item().save(item)
-    File().createFile(name=name, creator=user, item=item, reuseExisting=True,
-                      assetstore=assetstore, saveFile=True, size=obj.size)
+    girder_file = File().createFile(name=name, creator=user, item=item, reuseExisting=True,
+                                    assetstore=assetstore, saveFile=True, size=obj.size)
+    girder_file['pathInHdf5'] = obj.name
+    girder_file['hdf5Path'] = hdf5_path
+    File().save(girder_file)
 
 
-def mirror_objects_in_girder(folder, progress, user, assetstore, name, obj):
+def mirror_objects_in_girder(folder, progress, user, assetstore, hdf5_path, name, obj):
     progress.update(message=name)
     if isinstance(obj, h5py.Dataset):
-        resolve_dataset(folder, obj, user, assetstore)
+        resolve_dataset(folder, obj, user, assetstore, hdf5_path)
     elif isinstance(obj, h5py.Group):
         resolve_group(folder, obj, user)
 
 
 class Hdf5SupportAdapter(FilesystemAssetstoreAdapter):
+
+    def _downloadFromHdf5(self, girder_file):
+        pass
+
+    def downloadFile(self, girder_file, offset=0, headers=True, endByte=None, contentDisposition=None,
+                     **kwargs):
+        if girder_file.get('hdf5Path'):
+            return self._downloadFromHdf5(girder_file)
+
+        return super(Hdf5SupportAdapter, self).downloadFile(
+            girder_file, offset, headers, endByte, contentDisposition, **kwargs)
+
     def _importHdf5(self, path, folder, progress, user):
         if not os.path.isabs(path):
             path = os.path.join(self.assetstore['root'], path)
 
         try:
             hdf = h5py.File(path, 'r')
-            hdf.visititems(partial(mirror_objects_in_girder, folder, progress, user, self.assetstore))
+            hdf.visititems(partial(mirror_objects_in_girder, folder, progress, user, self.assetstore, path))
         except IOError:
             raise RestException('{} is not an hdf5 file'.format(path))
 
@@ -91,6 +105,7 @@ def _importHdf5(self, assetstore, folder, path, progress):
     adapter = getAssetstoreAdapter(assetstore)
     with ProgressContext(progress, user=user, title='Importing data') as ctx:
         adapter._importHdf5(path, folder, ctx, user)
+
 
 def load(info):
     setAssetstoreAdapter(AssetstoreType.FILESYSTEM, Hdf5SupportAdapter)
