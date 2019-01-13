@@ -21,6 +21,7 @@ def get_corresponding_hdf5_obj(obj, token):
         obj = obj.parent
     return obj
 
+
 def resolve_group(root_folder, obj, user):
     tokens = [i for i in obj.name.split('/') if i]
     parent = root_folder
@@ -28,7 +29,9 @@ def resolve_group(root_folder, obj, user):
         hdf5_obj = get_corresponding_hdf5_obj(obj, token)
         parent = Folder().createFolder(parent, token, creator=user, reuseExisting=True)
         parent['hdf5Metadata'] = str(hdf5_obj.attrs.items())
+        parent['hdf5Path'] = hdf5_obj.name
         Folder().save(parent)
+
 
 def resolve_dataset(root_folder, obj, user, assetstore):
     directory, name = os.path.split(obj.name)
@@ -38,12 +41,15 @@ def resolve_dataset(root_folder, obj, user, assetstore):
         hdf5_obj = get_corresponding_hdf5_obj(obj, token)
         parent = Folder().createFolder(parent, token, creator=user, reuseExisting=True)
         parent['hdf5Metadata'] = str(hdf5_obj.attrs.items())
+        parent['hdf5Path'] = hdf5_obj.name
         Folder().save(parent)
     item = Item().createItem(name=name, creator=user, folder=parent, reuseExisting=True)
     item['hdf5Metadata'] = str(obj.attrs.items())
+    item['hdf5Path'] = obj.name
     Item().save(item)
     File().createFile(name=name, creator=user, item=item, reuseExisting=True,
                       assetstore=assetstore, saveFile=False, size=obj.size)
+
 
 def mirror_objects_in_girder(folder, progress, user, assetstore, name, obj):
     progress.update(message=name)
@@ -51,6 +57,7 @@ def mirror_objects_in_girder(folder, progress, user, assetstore, name, obj):
         resolve_dataset(folder, obj, user, assetstore)
     elif isinstance(obj, h5py.Group):
         resolve_group(folder, obj, user)
+
 
 class Hdf5SupportAdapter(FilesystemAssetstoreAdapter):
     def _importHdf5(self, path, folder, progress, user):
