@@ -48,7 +48,7 @@ def resolve_dataset(root_folder, obj, user, assetstore):
     item['hdf5Path'] = obj.name
     Item().save(item)
     File().createFile(name=name, creator=user, item=item, reuseExisting=True,
-                      assetstore=assetstore, saveFile=False, size=obj.size)
+                      assetstore=assetstore, saveFile=True, size=obj.size)
 
 
 def mirror_objects_in_girder(folder, progress, user, assetstore, name, obj):
