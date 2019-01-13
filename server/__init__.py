@@ -1,6 +1,8 @@
 from functools import partial
 import h5py
+import numpy as np
 import os
+from tempfile import TemporaryFile
 
 from girder.api import access
 from girder.api.describe import autoDescribeRoute, Description
@@ -46,8 +48,10 @@ def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path):
     item = Item().createItem(name=name, creator=user, folder=parent, reuseExisting=True)
     item['hdf5Metadata'] = str(obj.attrs.items())
     Item().save(item)
+    hdf = h5py.File(hdf5_path, 'r')
+    dataset = hdf.get(obj.name)
     girder_file = File().createFile(name=name, creator=user, item=item, reuseExisting=True,
-                                    assetstore=assetstore, saveFile=True, size=obj.size)
+                                    assetstore=assetstore, saveFile=True, size=dataset[()].nbytes)
     girder_file['pathInHdf5'] = obj.name
     girder_file['hdf5Path'] = hdf5_path
     File().save(girder_file)
@@ -63,13 +67,44 @@ def mirror_objects_in_girder(folder, progress, user, assetstore, hdf5_path, name
 
 class Hdf5SupportAdapter(FilesystemAssetstoreAdapter):
 
-    def _downloadFromHdf5(self, girder_file):
-        pass
+    def _downloadFromHdf5(self, girder_file, offset, endByte, headers, contentDisposition):
+        if endByte is None or endByte > girder_file['size']:
+            endByte = girder_file['size']
+
+        if headers:
+            setResponseHeader('Accept-Ranges', 'bytes')
+            self.setContentHeaders(girder_file, offset, endByte, contentDisposition)
+
+        def stream():
+            with h5py.File(girder_file['hdf5Path'], 'r') as hdf5:
+                dataset = hdf5.get(girder_file['pathInHdf5'])[()]
+                fh = TemporaryFile()
+                np.save(fh, dataset)
+                fh.seek(0)
+                bytesRead = offset
+
+                if offset > 0:
+                    fh.seek(offset)
+
+                while True:
+                    readLen = min(BUF_SIZE, endByte - bytesRead)
+                    if readLen <= 0:
+                        break
+
+                    data = fh.read(readLen)
+                    bytesRead += readLen
+
+                    if not data:
+                        break
+                    yield data
+                fh.close()
+
+        return stream
 
     def downloadFile(self, girder_file, offset=0, headers=True, endByte=None, contentDisposition=None,
                      **kwargs):
         if girder_file.get('hdf5Path'):
-            return self._downloadFromHdf5(girder_file)
+            return self._downloadFromHdf5(girder_file, offset=0, headers=True, endByte=None, contentDisposition=None)
 
         return super(Hdf5SupportAdapter, self).downloadFile(
             girder_file, offset, headers, endByte, contentDisposition, **kwargs)
