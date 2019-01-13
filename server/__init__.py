@@ -25,7 +25,10 @@ def resolve_group(root_folder, obj, user):
     tokens = [i for i in obj.name.split('/') if i]
     parent = root_folder
     for token in tokens:
+        hdf5_obj = get_corresponding_hdf5_obj(obj, token)
         parent = Folder().createFolder(parent, token, creator=user, reuseExisting=True)
+        parent['hdf5Metadata'] = str(hdf5_obj.attrs.items())
+        Folder().save(parent)
 
 def resolve_dataset(root_folder, obj, user, assetstore):
     directory, name = os.path.split(obj.name)
