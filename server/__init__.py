@@ -2,7 +2,7 @@ from functools import partial
 import h5py
 import numpy as np
 import os
-from tempfile import TemporaryFile
+from tempfile import TemporaryFile, NamedTemporaryFile
 
 from girder.api import access
 from girder.api.describe import autoDescribeRoute, Description
@@ -62,6 +62,9 @@ def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path):
     Item().save(item)
     hdf = h5py.File(hdf5_path, "r")
     dataset = hdf.get(obj.name)
+    temp_file = NamedTemporaryFile()
+    np.save(temp_file, dataset)
+    temp_file.seek(0)
     girder_file = File().createFile(
         name=name,
         creator=user,
@@ -69,7 +72,7 @@ def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path):
         reuseExisting=True,
         assetstore=assetstore,
         saveFile=True,
-        size=dataset[()].nbytes,
+        size=os.stat(temp_file.name).st_size,
     )
     girder_file["pathInHdf5"] = obj.name
     girder_file["hdf5Path"] = hdf5_path
