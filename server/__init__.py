@@ -23,6 +23,17 @@ from girder.utility.filesystem_assetstore_adapter import (
 )
 from girder.utility.progress import ProgressContext
 
+def parse_attributes(attributes):
+    metadata = {}
+    if attributes:
+        for i in attributes:
+            try:
+                value = i[1].tolist()
+            except AttributeError:
+                value = i[1]
+            metadata[i[0]] = value
+    return metadata
+
 
 def get_corresponding_hdf5_obj(obj, token):
     while os.path.basename(obj.name) != token:
@@ -40,7 +51,7 @@ def resolve_group(root_folder, obj, user, path=None):
         parent = Folder().createFolder(
             parent, token, creator=user, reuseExisting=True
         )
-        parent["hdf5Metadata"] = str(hdf5_obj.attrs.items())
+        parent["meta"] = parse_attributes(hdf5_obj.attrs.items())
         parent["pathInHdf5"] = hdf5_obj.name
         Folder().save(parent)
 
@@ -52,7 +63,7 @@ def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path):
     item = Item().createItem(
         name=name, creator=user, folder=parent, reuseExisting=True
     )
-    item["hdf5Metadata"] = str(obj.attrs.items())
+    item["meta"] = parse_attributes(obj.attrs.items())
     Item().save(item)
     hdf = h5py.File(hdf5_path, "r")
     dataset = hdf.get(obj.name)
