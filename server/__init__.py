@@ -1,5 +1,6 @@
 from functools import partial
 import h5py
+from h5json import Hdf5db
 import numpy as np
 import os
 from tempfile import TemporaryFile, NamedTemporaryFile
@@ -23,17 +24,6 @@ from girder.utility.filesystem_assetstore_adapter import (
 )
 from girder.utility.progress import ProgressContext
 
-def parse_attributes(attributes):
-    metadata = {}
-    if attributes:
-        for i in attributes:
-            try:
-                value = i[1].tolist()
-            except AttributeError:
-                value = i[1]
-            metadata[i[0]] = value
-    return metadata
-
 
 def get_corresponding_hdf5_obj(obj, token):
     while os.path.basename(obj.name) != token:
@@ -41,7 +31,7 @@ def get_corresponding_hdf5_obj(obj, token):
     return obj
 
 
-def resolve_group(root_folder, obj, user, path=None):
+def resolve_group(root_folder, obj, user, attributes=None, path=None):
     if not path:
         path = obj.name
     tokens = [i for i in path.split("/") if i]
@@ -51,19 +41,21 @@ def resolve_group(root_folder, obj, user, path=None):
         parent = Folder().createFolder(
             parent, token, creator=user, reuseExisting=True
         )
-        parent["meta"] = parse_attributes(hdf5_obj.attrs.items())
+        if attributes:
+            parent["meta"] = attributes
         parent["pathInHdf5"] = hdf5_obj.name
         Folder().save(parent)
 
     return parent
 
-def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path):
+
+def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path, attributes):
     directory, name = os.path.split(obj.name)
     parent = resolve_group(root_folder, obj, user, path=directory)
     item = Item().createItem(
         name=name, creator=user, folder=parent, reuseExisting=True
     )
-    item["meta"] = parse_attributes(obj.attrs.items())
+    item["meta"] = attributes
     Item().save(item)
     hdf = h5py.File(hdf5_path, "r")
     dataset = hdf.get(obj.name)
@@ -89,9 +81,21 @@ def mirror_objects_in_girder(
 ):
     progress.update(message=name)
     if isinstance(obj, h5py.Dataset):
-        resolve_dataset(folder, obj, user, assetstore, hdf5_path)
+        with Hdf5db(hdf5_path, readonly=True) as db:
+            uuid = db.getUUIDByPath(name)
+            attrs = db.getAttributeItems("datasets", uuid)
+            attributes = [
+                db.getAttributeItem("datasets", uuid, i["name"]) for i in attrs
+            ]
+        resolve_dataset(folder, obj, user, assetstore, hdf5_path, attributes)
     elif isinstance(obj, h5py.Group):
-        resolve_group(folder, obj, user)
+        with Hdf5db(hdf5_path, readonly=True) as db:
+            uuid = db.getUUIDByPath(name)
+            attrs = db.getAttributeItems("groups", uuid)
+            attributes = [
+                db.getAttributeItem("groups", uuid, i["name"]) for i in attrs
+            ]
+        resolve_group(folder, obj, user, attributes=attributes)
 
 
 class Hdf5SupportAdapter(FilesystemAssetstoreAdapter):
