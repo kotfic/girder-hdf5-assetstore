@@ -42,8 +42,8 @@ def resolve_group(root_folder, obj, user, attributes=None, path=None):
             parent, token, creator=user, reuseExisting=True
         )
         if attributes:
+            attributes.append({"pathInHdf5": hdf5_obj.name})
             parent["meta"] = attributes
-        parent["pathInHdf5"] = hdf5_obj.name
         Folder().save(parent)
 
     return parent
@@ -55,6 +55,8 @@ def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path, attributes):
     item = Item().createItem(
         name=name, creator=user, folder=parent, reuseExisting=True
     )
+    attributes.append({'pathInHdf5': obj.name})
+    attributes.append({'hdf5Path': hdf5_path})
     item["meta"] = attributes
     Item().save(item)
     hdf = h5py.File(hdf5_path, "r")
