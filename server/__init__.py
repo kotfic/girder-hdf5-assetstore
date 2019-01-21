@@ -7,7 +7,7 @@ from tempfile import TemporaryFile, NamedTemporaryFile
 
 from girder.api import access
 from girder.api.describe import autoDescribeRoute, Description
-from girder.api.rest import boundHandler, setResponseHeader
+from girder.api.rest import boundHandler, setResponseHeader, filtermodel
 from girder.constants import AccessType, AssetstoreType, TokenScope
 from girder.exceptions import AccessException, RestException
 from girder.models.assetstore import Assetstore
@@ -216,8 +216,21 @@ def _importHdf5(self, assetstore, folder, path, progress):
         adapter._importHdf5(path, folder, ctx, user)
 
 
+@boundHandler
+@access.user
+@autoDescribeRoute(
+    Description("Get an hdf dataset for a given path in the file.")
+    .modelParam("id", model=Item, level=AccessType.READ)
+    .errorResponse()
+)
+def _getHdf5Dataset(self, item):
+    import pudb; pudb.set_trace()
+
 def load(info):
     setAssetstoreAdapter(AssetstoreType.FILESYSTEM, Hdf5SupportAdapter)
     info["apiRoot"].assetstore.route(
         "POST", (":id", "hdf5_import"), _importHdf5
+    )
+    info["apiRoot"].item.route(
+        "GET", (":id", "hdf5_data"), _getHdf5Dataset
     )
