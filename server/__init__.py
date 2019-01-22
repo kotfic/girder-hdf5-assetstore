@@ -213,6 +213,7 @@ class Hdf5SupportAdapter(FilesystemAssetstoreAdapter):
 )
 def _importHdf5(self, assetstore, folder, path, progress):
     user = self.getCurrentUser()
+    setAssetstoreAdapter(AssetstoreType.FILESYSTEM, Hdf5SupportAdapter)
     adapter = getAssetstoreAdapter(assetstore)
     with ProgressContext(progress, user=user, title="Importing data") as ctx:
         adapter._importHdf5(path, folder, ctx, user)
@@ -236,7 +237,6 @@ def _getHdf5Dataset(self, item):
     return buf.getvalue()
 
 def load(info):
-    setAssetstoreAdapter(AssetstoreType.FILESYSTEM, Hdf5SupportAdapter)
     info["apiRoot"].assetstore.route(
         "POST", (":id", "hdf5_import"), _importHdf5
     )
