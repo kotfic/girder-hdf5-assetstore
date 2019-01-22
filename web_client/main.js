@@ -2,13 +2,23 @@ import events from 'girder/events';
 import router from 'girder/router';
 import { restRequest } from 'girder/rest';
 import { wrap } from 'girder/utilities/PluginUtils';
-import AssetstoresView from 'girder/views/body/AssetstoresView';
-import AssetstoreModel from 'girder/models/AssetstoreModel';
 import FilesystemImportView from 'girder/views/body/FilesystemImportView';
+import ItemView from 'girder/views/body/ItemView';
 import importTemplate from './import.pug';
+import previewTemplate from './preview.pug';
 import './import.styl';
 import 'girder/utilities/jquery/girderEnable';
 
+wrap(ItemView, 'render', function (render) {
+    this.once('g:rendered', function() {
+	this.$('.g-item-info').after(previewTemplate(
+	    {
+		itemId: this.model.get('_id')
+	    }
+	));
+    }, this);
+    render.call(this);
+});
 
 wrap(FilesystemImportView, 'render', function (render) {
     render.call(this);

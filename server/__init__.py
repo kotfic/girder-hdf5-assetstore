@@ -1,12 +1,14 @@
 from functools import partial
 import h5py
+from h5json import Hdf5db
+from io import BytesIO
 import numpy as np
 import os
 from tempfile import TemporaryFile, NamedTemporaryFile
 
 from girder.api import access
 from girder.api.describe import autoDescribeRoute, Description
-from girder.api.rest import boundHandler, setResponseHeader
+from girder.api.rest import boundHandler, setResponseHeader, filtermodel, setRawResponse
 from girder.constants import AccessType, AssetstoreType, TokenScope
 from girder.exceptions import AccessException, RestException
 from girder.models.assetstore import Assetstore
@@ -23,17 +25,7 @@ from girder.utility.filesystem_assetstore_adapter import (
 )
 from girder.utility.progress import ProgressContext
 
-def parse_attributes(attributes):
-    metadata = {}
-    if attributes:
-        for i in attributes:
-            try:
-                value = i[1].tolist()
-            except AttributeError:
-                value = i[1]
-            metadata[i[0]] = value
-    return metadata
-
+from render import render_hdf5_dataset
 
 def get_corresponding_hdf5_obj(obj, token):
     while os.path.basename(obj.name) != token:
@@ -41,7 +33,7 @@ def get_corresponding_hdf5_obj(obj, token):
     return obj
 
 
-def resolve_group(root_folder, obj, user, path=None):
+def resolve_group(root_folder, obj, user, attributes=None, path=None):
     if not path:
         path = obj.name
     tokens = [i for i in path.split("/") if i]
@@ -51,19 +43,23 @@ def resolve_group(root_folder, obj, user, path=None):
         parent = Folder().createFolder(
             parent, token, creator=user, reuseExisting=True
         )
-        parent["meta"] = parse_attributes(hdf5_obj.attrs.items())
-        parent["pathInHdf5"] = hdf5_obj.name
+        if attributes:
+            attributes.append({"pathInHdf5": hdf5_obj.name})
+            parent["meta"] = attributes
         Folder().save(parent)
 
     return parent
 
-def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path):
+
+def resolve_dataset(root_folder, obj, user, assetstore, hdf5_path, attributes):
     directory, name = os.path.split(obj.name)
     parent = resolve_group(root_folder, obj, user, path=directory)
     item = Item().createItem(
         name=name, creator=user, folder=parent, reuseExisting=True
     )
-    item["meta"] = parse_attributes(obj.attrs.items())
+    attributes.append({'pathInHdf5': obj.name})
+    attributes.append({'hdf5Path': hdf5_path})
+    item["meta"] = attributes
     Item().save(item)
     hdf = h5py.File(hdf5_path, "r")
     dataset = hdf.get(obj.name)
@@ -89,9 +85,21 @@ def mirror_objects_in_girder(
 ):
     progress.update(message=name)
     if isinstance(obj, h5py.Dataset):
-        resolve_dataset(folder, obj, user, assetstore, hdf5_path)
+        with Hdf5db(hdf5_path, readonly=True) as db:
+            uuid = db.getUUIDByPath(name)
+            attrs = db.getAttributeItems("datasets", uuid)
+            attributes = [
+                db.getAttributeItem("datasets", uuid, i["name"]) for i in attrs
+            ]
+        resolve_dataset(folder, obj, user, assetstore, hdf5_path, attributes)
     elif isinstance(obj, h5py.Group):
-        resolve_group(folder, obj, user)
+        with Hdf5db(hdf5_path, readonly=True) as db:
+            uuid = db.getUUIDByPath(name)
+            attrs = db.getAttributeItems("groups", uuid)
+            attributes = [
+                db.getAttributeItem("groups", uuid, i["name"]) for i in attrs
+            ]
+        resolve_group(folder, obj, user, attributes=attributes)
 
 
 class Hdf5SupportAdapter(FilesystemAssetstoreAdapter):
@@ -210,8 +218,28 @@ def _importHdf5(self, assetstore, folder, path, progress):
         adapter._importHdf5(path, folder, ctx, user)
 
 
+@boundHandler
+@access.public
+@autoDescribeRoute(
+    Description("Get an hdf dataset for a given path in the file.")
+    .modelParam("id", model=Item, level=AccessType.READ)
+    .errorResponse()
+)
+def _getHdf5Dataset(self, item):
+    setResponseHeader('Content-Type', 'image/png')
+    setRawResponse()
+    hdf5Path = [i for i in item['meta'] if 'hdf5Path' in i.keys()][0]['hdf5Path']
+    pathInHdf5 = [i for i in item['meta'] if 'pathInHdf5' in i.keys()][0]['pathInHdf5']
+    figure = render_hdf5_dataset(hdf5Path, pathInHdf5)
+    buf = BytesIO()
+    figure.savefig(buf, format='png')
+    return buf.getvalue()
+
 def load(info):
     setAssetstoreAdapter(AssetstoreType.FILESYSTEM, Hdf5SupportAdapter)
     info["apiRoot"].assetstore.route(
         "POST", (":id", "hdf5_import"), _importHdf5
+    )
+    info["apiRoot"].item.route(
+        "GET", (":id", "hdf5_data"), _getHdf5Dataset
     )
