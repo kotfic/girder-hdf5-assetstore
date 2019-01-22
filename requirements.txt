@@ -1,2 +1,4 @@
 h5py
 h5json
+matplotlib
+https://github.com/matplotlib/basemap/archive/master.zip

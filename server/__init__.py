@@ -1,6 +1,7 @@
 from functools import partial
 import h5py
 from h5json import Hdf5db
+from io import BytesIO
 import numpy as np
 import os
 from tempfile import TemporaryFile, NamedTemporaryFile
@@ -24,6 +25,7 @@ from girder.utility.filesystem_assetstore_adapter import (
 )
 from girder.utility.progress import ProgressContext
 
+from render import render_hdf5_dataset
 
 def get_corresponding_hdf5_obj(obj, token):
     while os.path.basename(obj.name) != token:
@@ -226,8 +228,12 @@ def _importHdf5(self, assetstore, folder, path, progress):
 def _getHdf5Dataset(self, item):
     setResponseHeader('Content-Type', 'image/png')
     setRawResponse()
-    with open('/data/Downloads/foo.png', 'r') as image:
-        return image.read()
+    hdf5Path = [i for i in item['meta'] if 'hdf5Path' in i.keys()][0]['hdf5Path']
+    pathInHdf5 = [i for i in item['meta'] if 'pathInHdf5' in i.keys()][0]['pathInHdf5']
+    figure = render_hdf5_dataset(hdf5Path, pathInHdf5)
+    buf = BytesIO()
+    figure.savefig(buf, format='png')
+    return buf.getvalue()
 
 def load(info):
     setAssetstoreAdapter(AssetstoreType.FILESYSTEM, Hdf5SupportAdapter)
