@@ -13,7 +13,7 @@ wrap(ItemView, 'render', function (render) {
     this.once('g:rendered', function() {
 	this.$('.g-item-info').after(previewTemplate(
 	    {
-		itemId: this.model.get('itemId')
+		itemId: this.model.get('_id')
 	    }
 	));
     }, this);
