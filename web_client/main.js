@@ -10,14 +10,23 @@ import './import.styl';
 import 'girder/utilities/jquery/girderEnable';
 
 wrap(ItemView, 'render', function (render) {
-    this.once('g:rendered', function() {
-	this.$('.g-item-info').after(previewTemplate(
+    let that = this;
+    restRequest({
+	type: 'GET',
+	url: `item/${this.model.get('_id')}/hdf5_data`,
+	progress: true
+    }).done((resp) => {
+	that.once('g:rendered', function() {
+	that.$('.g-item-info').after(previewTemplate(
 	    {
-		itemId: this.model.get('_id')
+		base64image: resp
 	    }
 	));
-    }, this);
+    }, that);
     render.call(this);
+    });
+
+
 });
 
 wrap(FilesystemImportView, 'render', function (render) {

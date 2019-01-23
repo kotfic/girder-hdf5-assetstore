@@ -1,3 +1,4 @@
+from base64 import b64encode
 from functools import partial
 import h5py
 from h5json import Hdf5db
@@ -218,9 +219,8 @@ def _importHdf5(self, assetstore, folder, path, progress):
     with ProgressContext(progress, user=user, title="Importing data") as ctx:
         adapter._importHdf5(path, folder, ctx, user)
 
-
 @boundHandler
-@access.public
+@access.admin(scope=TokenScope.DATA_READ)
 @autoDescribeRoute(
     Description("Get an hdf dataset for a given path in the file.")
     .modelParam("id", model=Item, level=AccessType.READ)
@@ -234,7 +234,7 @@ def _getHdf5Dataset(self, item):
     figure = render_hdf5_dataset(hdf5Path, pathInHdf5)
     buf = BytesIO()
     figure.savefig(buf, format='png')
-    return buf.getvalue()
+    return b64encode(buf.getvalue())
 
 def load(info):
     info["apiRoot"].assetstore.route(
