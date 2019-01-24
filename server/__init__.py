@@ -227,14 +227,18 @@ def _importHdf5(self, assetstore, folder, path, progress):
     .errorResponse()
 )
 def _getHdf5Dataset(self, item):
-    setResponseHeader('Content-Type', 'image/png')
-    setRawResponse()
-    hdf5Path = [i for i in item['meta'] if 'hdf5Path' in i.keys()][0]['hdf5Path']
-    pathInHdf5 = [i for i in item['meta'] if 'pathInHdf5' in i.keys()][0]['pathInHdf5']
-    figure = render_hdf5_dataset(hdf5Path, pathInHdf5)
-    buf = BytesIO()
-    figure.savefig(buf, format='png')
-    return b64encode(buf.getvalue())
+    try:
+        setResponseHeader('Content-Type', 'image/png')
+        setRawResponse()
+        hdf5Path = [i for i in item['meta'] if 'hdf5Path' in i.keys()][0]['hdf5Path']
+        pathInHdf5 = [i for i in item['meta'] if 'pathInHdf5' in i.keys()][0]['pathInHdf5']
+        figure = render_hdf5_dataset(hdf5Path, pathInHdf5)
+        buf = BytesIO()
+        figure.savefig(buf, format='png')
+        return b64encode(buf.getvalue())
+    except:
+        pass
+
 
 def load(info):
     info["apiRoot"].assetstore.route(

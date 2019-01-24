@@ -1,2 +1,3 @@
 a
-  img(src='data:image/png;base64,' + base64image)
+  if base64image
+    img(src='data:image/png;base64,' + base64image)
