@@ -5,29 +5,9 @@ import { wrap } from 'girder/utilities/PluginUtils';
 import FilesystemImportView from 'girder/views/body/FilesystemImportView';
 import ItemView from 'girder/views/body/ItemView';
 import importTemplate from './import.pug';
-import previewTemplate from './preview.pug';
 import './import.styl';
 import 'girder/utilities/jquery/girderEnable';
 
-wrap(ItemView, 'render', function (render) {
-    let that = this;
-    restRequest({
-	type: 'GET',
-	url: `item/${this.model.get('_id')}/hdf5_data`,
-	progress: true
-    }).done((resp) => {
-	that.once('g:rendered', function() {
-	that.$('.g-item-info').after(previewTemplate(
-	    {
-		base64image: resp
-	    }
-	));
-    }, that);
-    render.call(this);
-    });
-
-
-});
 
 wrap(FilesystemImportView, 'render', function (render) {
     render.call(this);

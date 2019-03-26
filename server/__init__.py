@@ -26,8 +26,6 @@ from girder.utility.filesystem_assetstore_adapter import (
 )
 from girder.utility.progress import ProgressContext
 
-from render import render_hdf5_dataset
-
 def get_corresponding_hdf5_obj(obj, token):
     while os.path.basename(obj.name) != token:
         obj = obj.parent
@@ -226,24 +224,9 @@ def _importHdf5(self, assetstore, folder, path, progress):
     .modelParam("id", model=Item, level=AccessType.READ)
     .errorResponse()
 )
-def _getHdf5Dataset(self, item):
-    try:
-        setResponseHeader('Content-Type', 'image/png')
-        setRawResponse()
-        hdf5Path = [i for i in item['meta'] if 'hdf5Path' in i.keys()][0]['hdf5Path']
-        pathInHdf5 = [i for i in item['meta'] if 'pathInHdf5' in i.keys()][0]['pathInHdf5']
-        figure = render_hdf5_dataset(hdf5Path, pathInHdf5)
-        buf = BytesIO()
-        figure.savefig(buf, format='png')
-        return b64encode(buf.getvalue())
-    except:
-        pass
 
 
 def load(info):
     info["apiRoot"].assetstore.route(
         "POST", (":id", "hdf5_import"), _importHdf5
-    )
-    info["apiRoot"].item.route(
-        "GET", (":id", "hdf5_data"), _getHdf5Dataset
     )
